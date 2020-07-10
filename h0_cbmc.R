@@ -23,7 +23,6 @@ library(BiocSingular)
 
 setwd("C:/Users/edbels/Documents/GitHub/mastat_thesis")
 
-
 source("seurat_metrics.R")
 
 
@@ -38,20 +37,7 @@ cbmc.rna <- as.sparse(read.csv(file = "dataset_seurat_h0/GSE100866_CBMC_8K_13AB_
                                header = TRUE, row.names = 1))
 cbmc.rna <- CollapseSpeciesExpressionMatrix(cbmc.rna) # deletes HUMAN-
 cbmc <- CreateSeuratObject(counts = cbmc.rna)
-rm("cbmc.rna") #regularly delete variables that are not used anymore, to reduce memory usage
-
-### explore the data + QC
-cbmc[["percent.mt"]] <- PercentageFeatureSet(cbmc, pattern = "^MT-")
-head(cbmc@meta.data, 10) # Show QC metrics for the first 5 cells
-sum(cbmc@meta.data$percent.mt==0)
-VlnPlot(cbmc, features = c("nFeature_RNA", "nCount_RNA", "percent.mt"), ncol = 3)
-plot1 <- FeatureScatter(cbmc, feature1 = "nCount_RNA", feature2 = "percent.mt")
-plot2 <- FeatureScatter(cbmc, feature1 = "nCount_RNA", feature2 = "nFeature_RNA")
-plot1 + plot2
-#cbmc <- subset(cbmc, subset = nCount_RNA <25000 &
-#                 nFeature_RNA < 4500 &
-#                 percent.mt < 15) # --> keep all datapoints, if not, uncomment this line
-rm('plot1','plot2')
+rm("cbmc.rna") #regularly delete variables that are not used anymore, to keep memory usage low
 
 # Normalize and find HVG, default number is 2000
 cbmc <- NormalizeData(cbmc)
@@ -61,15 +47,14 @@ cbmc <- FindVariableFeatures(cbmc)
 cbmc <- ScaleData(cbmc)
 cbmc <- RunPCA(cbmc, verbose = FALSE)
 ElbowPlot(cbmc, ndims = 50) # 20 to 30 PCA's seems good
+nPCAs <- 25
 
-## implement better way to select number of PCA's?
-npca <- 25
+### other method to choose number of PCAs?
 
-## because no cell type labels are present: create "ground truth" from clustering -> cfr vignette
-cbmc1 <- cbmc # use new seurat object, because harmany doesn't work when Idents are present
-cbmc1 <- FindNeighbors(cbmc, dims = 1:npca)
-cbmc1 <- FindClusters(cbmc1, resolution = 0.8) 
-cbmc.rna.markers <- FindAllMarkers(cbmc1, 
+## because no cell type labels are present: create "ground truth" from clustering
+cbmc <- FindNeighbors(cbmc, dims = 1:nPCAs)
+cbmc <- FindClusters(cbmc, resolution = 0.8) 
+cbmc.rna.markers <- FindAllMarkers(cbmc, 
                                    max.cells.per.ident = 100,
                                    min.diff.pct = 0.3,
                                    only.pos = TRUE)
@@ -78,11 +63,22 @@ new.cluster.ids <- c("Memory CD4 T", "CD14+ Mono", "Naive CD4 T", "NK",
                      "T/Mono doublets", "NK", "CD34+", "Multiplets", "Mouse",
                      "Eryth", "Mk","Mouse", "DC", "pDCs")
 names(new.cluster.ids) <- levels(cbmc)
-cbmc1 <- RenameIdents(cbmc1, new.cluster.ids)
-gt <- Idents(cbmc1)
-rm("cbmc.rna.markers","cbmc1")
+cbmc <- RenameIdents(cbmc, new.cluster.ids)
+gt <- Idents(cbmc)
+rm("cbmc.rna.markers")
 
-## if no ground truth is available, use automatic annotation tools and implement here. 
+### explore the data + QC
+cbmc[["percent.mt"]] <- PercentageFeatureSet(cbmc, pattern = "^MT-")
+head(cbmc@meta.data, 10) # Show QC metrics for the first 5 cells --> no mitochondrial data?
+sum(cbmc@meta.data$percent.mt==0) # all percent.mt == 0 --> or naming genes is different?
+VlnPlot(cbmc, features = c("nFeature_RNA", "nCount_RNA", "percent.mt"), ncol = 3)
+plot1 <- FeatureScatter(cbmc, feature1 = "nCount_RNA", feature2 = "percent.mt")
+plot2 <- FeatureScatter(cbmc, feature1 = "nCount_RNA", feature2 = "nFeature_RNA")
+plot1 + plot2
+#cbmc <- subset(cbmc, subset = nCount_RNA <25000 &
+#                 nFeature_RNA < 4500 &
+#                 percent.mt < 15) # --> keep all datapoints
+rm('plot1','plot2')
 
 ######### split the dataset ########### 
 if (split_batch ==1) {
@@ -101,38 +97,37 @@ if (split_batch ==1) {
   groups[gt=="Naive CD4 T"] <- 1
 }
 
-# split the object in batches
+# split the object in batches -> add metadata with batch information
 names(groups) <- colnames(cbmc)
-cbmc <- AddMetaData(object = cbmc, metadata = groups, col.name = "group") # add batch labels
-cbmc <- AddMetaData(object = cbmc, metadata = gt, col.name = "cell_type") # add cell labels
+cbmc <- AddMetaData(object = cbmc, metadata = groups, col.name = "group")
+cbmc <- AddMetaData(object = cbmc, metadata = gt, col.name = "cell_type")
 
-################## No data integration method, simple merge  #################
+################## No data integration method #################
 
-# here, it was one dataset to start with, so do nothing
-cbmc1 <- cbmc
+# simple merge, so do nothing in this case
 
-#clustering -> creates metadata Suerat_clusters
-cbmc1 <- FindNeighbors(cbmc, dims = 1:npca)
-cbmc1 <- FindClusters(cbmc1, resolution = 0.8)
+#clustering -> creates metadata suerat_clusters
+cbmc <- FindNeighbors(cbmc, dims = 1:nPCAs)
+cbmc <- FindClusters(cbmc, resolution = 0.8)
 
-# Run umap and tsne for visualisation and performance
-cbmc1 <- RunUMAP(cbmc1, reduction = "pca", dims = 1:npca)
-#cbmc1 <- RunTSNE(cbmc1, perplexity = 30, do.fast = T)
+# UMAP and TSNE
+cbmc <- RunUMAP(cbmc, reduction = "pca", dims = 1:nPCAs)
+#cbmc <- RunTSNE(cbmc, perplexity=30, do.fast = T)
 
-# visualisation
+# Run the standard workflow for visualization
+# for the different batches
 reduc <- "umap"
-p1merge <- DimPlot(cbmc1, reduction = reduc, group.by = "group")
-p2merge <- DimPlot(cbmc1, reduction = reduc, group.by = "seurat_clusters")
-p1merge + p2merge
+p1merge <- DimPlot(cbmc, reduction = reduc, group.by = "group")
+p2merge <- DimPlot(cbmc, reduction = reduc, group.by = "seurat_clusters")
+p1merge + p2merge 
 
-#performance
-perf_merge <- seurat.performance(cbmc1,"cell_type","group","seurat_clusters")
-rm("cbmc1")
+perf_merge <- seurat.performance(cbmc,"cell_type","group","seurat_clusters")
+
 
 ######### Seurat v3 ########### 
 cbmc.list <- SplitObject(cbmc, split.by = "group")
 
-# normalize data and HVG in each batch separately -> delete code if not required per batch
+# normalize data and HVG
 #for (i in 1:length(cbmc.list)) {
 #  cbmc.list[[i]] <- NormalizeData(cbmc.list[[i]], verbose = FALSE)
 #  cbmc.list[[i]] <- FindVariableFeatures(cbmc.list[[i]], selection.method = "vst", 
@@ -140,33 +135,35 @@ cbmc.list <- SplitObject(cbmc, split.by = "group")
 #}
 
 # merge
-cbmc.anchors <- FindIntegrationAnchors(object.list = cbmc.list, dims = 1:npca)
-cbmc.integrated <- IntegrateData(anchorset = cbmc.anchors, dims = 1:npca)
-rm('cmbc.list')
+reference.list <- cbmc.list
+cbmc.anchors <- FindIntegrationAnchors(object.list = reference.list, dims = 1:nPCAs)
+cbmc.integrated <- IntegrateData(anchorset = cbmc.anchors, dims = 1:nPCAs)
+rm('cmbc.list','reference.list')
 
 # scale, find HVG and run PCA
 cbmc.integrated <- ScaleData(cbmc.integrated, verbose = FALSE)
 cbmc.integrated <- FindVariableFeatures(cbmc.integrated)
-cbmc.integrated <- RunPCA(cbmc.integrated, npcs = npca, verbose = FALSE)
+cbmc.integrated <- RunPCA(cbmc.integrated, npcs = 30, verbose = FALSE)
 
 #clustering -> creates metadata suerat_clusters
-cbmc.integrated <- FindNeighbors(cbmc.integrated, dims = 1:npca)
+cbmc.integrated <- FindNeighbors(cbmc.integrated, dims = 1:nPCAs)
 cbmc.integrated <- FindClusters(cbmc.integrated, resolution = 0.8)
 
-# Run umap and tsne for visualisation and performance
-cbmc <- RunUMAP(cbmc.integrated, reduction = "pca", dims = 1:npca)
-#cbmc <- RunTSNE(cbmc.integrated, perplexity = 30, do.fast = T)
+#UMAP and TSNE
+cbmc.integrated <- RunUMAP(cbmc.integrated, reduction = "pca", dims = 1:nPCAs)
+#cbmc.integrated <- RunTSNE(cbmc.integrated, perplexity=30, do.fast = T)
 
-# visualisation
+# Run the standard workflow for visualization
+# for the different batches
 reduc <- "umap"
 p1seurat <- DimPlot(cbmc.integrated, reduction = reduc, group.by = "group")
 p2seurat <- DimPlot(cbmc.integrated, reduction = reduc, group.by = "seurat_clusters")
 p1seurat + p2seurat
 
-
 perf_seurat <- seurat.performance(cbmc.integrated,"cell_type","group","seurat_clusters")
 rm("cbmc.integrated")
 
+save.image()
 
 ######### Harmony ########### 
 
@@ -174,55 +171,56 @@ rm("cbmc.integrated")
 cbmc.integrated <- RunHarmony(cbmc,"group")
 
 #clustering -> creates metadata suerat_clusters
-cbmc.integrated <- FindNeighbors(cbmc.integrated, reduction = "harmony",dims = 1:npca)
+cbmc.integrated <- FindNeighbors(cbmc.integrated, reduction = "harmony",dims = 1:nPCAs)
 cbmc.integrated <- FindClusters(cbmc.integrated, resolution = 0.8)
 
-# Run umap and tsne for visualisation and performance
-cbmc.integrated <- RunUMAP(cbmc.integrated, reduction = "harmony", dims = 1:npca)
-cbmc.integrated <- RunTSNE(cbmc.integrated, reduction = "harmony", perplexity=30, do.fast = T)
+# tsne and umap for visualisation
+cbmc.integrated <- RunUMAP(cbmc.integrated, reduction = "harmony", dims = 1:nPCAs)
+#cbmc.integrated <- RunTSNE(cbmc.integrated, reduction = "harmony", perplexity=30, do.fast = T)
 
-#  visualization
+# Run the standard workflow for visualization
+# for the different batches
 reduc <- "umap"
 p1harmony <- DimPlot(cbmc.integrated, reduction = reduc, group.by = "group")
 p2harmony <- DimPlot(cbmc.integrated, reduction = reduc, group.by = "seurat_clusters")
-p1harmony + p2harmony
+
+p1harmony + p2harmony 
 
 perf_Harmony <- seurat.performance(cbmc.integrated,"cell_type","group","seurat_clusters")
 rm("cbmc.integrated")
 
-
 ######### SCtransform ########### 
+
+# cbmc is actually already normalised here (standard log-normalisation -> change?)
 
 # merge
 cbmc.integrated <- SCTransform(cbmc, vars.to.regress = "group", verbose = FALSE)
 
 # run PCA (scale, and HVG imbedded in SCTransform)
-cbmc.integrated <- RunPCA(cbmc.integrated, npcs = npca, verbose = FALSE)
+cbmc.integrated <- RunPCA(cbmc.integrated, npcs = nPCAs, verbose = FALSE)
 
 #clustering -> creates metadata suerat_clusters
-cbmc.integrated <- FindNeighbors(cbmc.integrated, reduction = "pca",dims = 1:npca)
+cbmc.integrated <- FindNeighbors(cbmc.integrated, reduction = "pca",dims = 1:nPCAs)
 cbmc.integrated <- FindClusters(cbmc.integrated, resolution = 0.8)
 
-# Run umap and tsne for visualisation and performance
-cbmc <- RunUMAP(cbmc.integrated, reduction = "pca", dims = 1:npca)
-cbmc <- RunTSNE(cbmc.integrated, perplexity = 30, do.fast = T)
+# UMAP and tsne
+cbmc.integrated <- RunUMAP(cbmc.integrated, reduction = "pca", dims = 1:nPCAs)
+#cbmc.integrated <- RunTSNE(cbmc.integrated, reduction = "pca", perplexity=30, do.fast = T)
 
-# visualisation
+# Run the standard workflow for visualization
+# for the different batches
 reduc <- "umap"
-p1sct <- DimPlot(cbmc.integrated, reduction = reduc, group.by = "group")
-p2sct <- DimPlot(cbmc.integrated, reduction = reduc, group.by = "seurat_clusters")
-p1sct + p2sct
+p11sct <- DimPlot(cbmc.integrated, reduction = reduc, group.by = "group")
+p22sct <- DimPlot(cbmc.integrated, reduction = reduc, group.by = "seurat_clusters")
 
-perf_scTransform <- seurat.performance(cbmc.integrated,"cell_type","group","seurat_clusters")
+p1sct + p2sct 
 
+perf1_SCTransform <- seurat.performance(cbmc.integrated,"cell_type","group","seurat_clusters")
+
+rm("cbmc.integrated")
 
 
 ######### SCMerge ########### 
-
-# normalization, HVG selection and scaling
-cbmc <- NormalizeData(cbmc, verbose = FALSE)
-cbmc <- ScaleData(cbmc, verbose = FALSE)
-cbmc <- FindVariableFeatures(cbmc)
 
 # merge
 # make single cell experiment
@@ -250,21 +248,23 @@ rm("cbmc.sce")
 # run PCA
 cbmc.integrated <- ScaleData(cbmc.integrated, verbose = FALSE)
 cbmc.integrated <- FindVariableFeatures(cbmc.integrated)
-cbmc.integrated <- RunPCA(cbmc.integrated, npcs = npca, verbose = FALSE)
+cbmc.integrated <- RunPCA(cbmc.integrated, npcs = nPCAs, verbose = FALSE)
 
 #clustering -> creates metadata suerat_clusters
-cbmc.integrated <- FindNeighbors(cbmc.integrated, reduction = "pca",dims = 1:npca)
+cbmc.integrated <- FindNeighbors(cbmc.integrated, reduction = "pca",dims = 1:nPCAs)
 cbmc.integrated <- FindClusters(cbmc.integrated, resolution = 0.8)
 
-# Run umap and tsne for visualisation and performance
-cbmc <- RunUMAP(cbmc.integrated, reduction = "pca", dims = 1:npca)
-cbmc <- RunTSNE(cbmc.integrated, perplexity = 30, do.fast = T)
 
-# visualisation
+# umap and tsne
+cbmc.integrated <- RunUMAP(cbmc.integrated, reduction = "pca", dims = 1:nPCAs)
+#cbmc.integrated <- RunTSNE(cbmc.integrated, reduction = "pca", perplexity=30, do.fast = T)
+
+# Run the standard workflow for visualization
+# for the different batches
 reduc <- "umap"
 p1scm <- DimPlot(cbmc.integrated, reduction = reduc, group.by = "group")
 p2scm <- DimPlot(cbmc.integrated, reduction = reduc, group.by = "seurat_clusters")
-p1scm + p2scm
+p1scm + p2scm 
 
 perf_SCMerge <- seurat.performance(cbmc.integrated,"cell_type","group","seurat_clusters")
 
