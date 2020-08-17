@@ -1,4 +1,4 @@
-merge <- function(seurat_object, batch, nPCAs = 20, reduc = "umap") {
+smerge <- function(seurat_object, batch, nPCAs = 30, reduc = "umap") {
   #clustering -> creates metadata suerat_clusters
   seurat_object <- FindNeighbors(seurat_object, dims = 1:nPCAs)
   seurat_object <- FindClusters(seurat_object, resolution = 0.8)
@@ -51,7 +51,7 @@ seurat <- function(seurat_object, batch, nPCAs = 30, reduc = "umap") {
   p2seurat <- DimPlot(seurat_object.integrated, reduction = reduc, group.by = "seurat_clusters")
   p1seurat + p2seurat
   
-  return(seurat_object)
+  return(seurat_object.integrated)
 }
 
 harmony <- function(seurat_object, batch, nPCAs = 30, reduc = "umap") {
@@ -72,6 +72,7 @@ harmony <- function(seurat_object, batch, nPCAs = 30, reduc = "umap") {
   p2harmony <- DimPlot(seurat_object.integrated, reduction = reduc, group.by = "seurat_clusters")
   
   p1harmony + p2harmony
+  return(seurat_object.integrated)
 }
 
 scTransform <- function(seurat_object, batch, nPCAs = 20, reduc = "umap") {
@@ -96,10 +97,10 @@ scTransform <- function(seurat_object, batch, nPCAs = 20, reduc = "umap") {
   p1sct + p2sct 
   
   
-  return(seurat_object)
+  return(seurat_object.integrated)
 }
 
-scMerge <- function(seurat_object, batch, nPCAs = 20, reduc = "umap") {
+scMerge_so <- function(seurat_object, batch, nPCAs = 20, reduc = "umap") {
   # merge
   # make single cell experiment
   seurat_object.sce <- as.SingleCellExperiment(seurat_object)
@@ -116,11 +117,11 @@ scMerge <- function(seurat_object, batch, nPCAs = 20, reduc = "umap") {
     ctl = rownames(result),
     kmeansK = c(K,K),
     assay_name = "scMerge_unsupervised",
-    batch_name =batch,
+    batch_name ="group",
     BSPARAM = IrlbaParam(), 
     svd_k = 20)
   # remake seurat object
-  seurat_object.integrated <- as.Seurat(scMerge_unsupervised, counts = "scMerge_unsupervised")
+  seurat_object.integrated <- as.Seurat(seurat_object.sce, counts = "scMerge_unsupervised")
   rm("seurat_object.sce")
   
   # run PCA
@@ -144,5 +145,5 @@ scMerge <- function(seurat_object, batch, nPCAs = 20, reduc = "umap") {
   p1scm + p2scm 
   
   
-  return(seurat_object)
+  return(seurat_object.integrated)
 }

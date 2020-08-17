@@ -210,8 +210,8 @@ cbmc.integrated <- RunUMAP(cbmc.integrated, reduction = "pca", dims = 1:nPCAs)
 # Run the standard workflow for visualization
 # for the different batches
 reduc <- "umap"
-p11sct <- DimPlot(cbmc.integrated, reduction = reduc, group.by = "group")
-p22sct <- DimPlot(cbmc.integrated, reduction = reduc, group.by = "seurat_clusters")
+p1sct <- DimPlot(cbmc.integrated, reduction = reduc, group.by = "group")
+p2sct <- DimPlot(cbmc.integrated, reduction = reduc, group.by = "seurat_clusters")
 
 p1sct + p2sct 
 
@@ -242,7 +242,7 @@ cbmc.sce <- scMerge(
   BSPARAM = IrlbaParam(), 
   svd_k = 20)
 # remake seurat object
-cbmc.integrated <- as.Seurat(scMerge_unsupervised, counts = "scMerge_unsupervised")
+cbmc.integrated <- as.Seurat(cbmc.sce, counts = "scMerge_unsupervised")
 rm("cbmc.sce")
 
 # run PCA
