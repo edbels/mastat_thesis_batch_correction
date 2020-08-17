@@ -1,3 +1,5 @@
+# below are all the functions to perform data integration. 
+
 smerge <- function(seurat_object, batch, nPCAs = 30, reduc = "umap") {
   #clustering -> creates metadata suerat_clusters
   seurat_object <- FindNeighbors(seurat_object, dims = 1:nPCAs)

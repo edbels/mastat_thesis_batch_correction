@@ -1,3 +1,5 @@
+# the code below does the same as h0_cbmc, but n times -> to check the stability of performance metrics
+
 
 rm(list = ls())
 
@@ -32,7 +34,7 @@ conflicts(detail=TRUE)### choose option of split
 # -> 1: equal split
 # -> 2: unequal split
 # -> 3: equal split, but with all "Naive CD4 T" in batch one
-split_batch <- 1
+split_batch <- 3
 
 ### load in the file and make a seurat object
 cbmc.rna <- as.sparse(read.csv(file = "dataset_seurat_h0/GSE100866_CBMC_8K_13AB_10X-RNA_umi.csv.gz", sep = ",", 

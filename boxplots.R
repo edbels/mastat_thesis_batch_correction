@@ -1,3 +1,5 @@
+# make boxplots over iterations of performance metrics
+
 setwd("C:/Users/edbels/Documents/GitHub/mastat_thesis")
 
 load("cbmc_stability_1.RData")
