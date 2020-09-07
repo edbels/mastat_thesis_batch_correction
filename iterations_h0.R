@@ -33,7 +33,7 @@ tot_iterations <- 1e2
 conflicts(detail=TRUE)### choose option of split 
 # -> 1: equal split
 # -> 2: unequal split
-# -> 3: equal split, but with all "Naive CD4 T" in batch one
+# -> 3: equal split, but with all "Naive CD4 T" cells in batch one
 split_batch <- 3
 
 ### load in the file and make a seurat object
@@ -170,10 +170,10 @@ for (i in 1:tot_iterations){
   rm("cbmc_scm","perf")
   
   
-  save(hvg, kbet, lisi, nmi, ari, asw, file = "cbmc_stability_1.RData")
+  save(hvg, kbet, lisi, nmi, ari, asw, file = paste0("cbmc_stability_",split_batch,".RData"))
   
 }
 
 
-save(hvg, kbet, lisi, nmi, ari, asw, file = "cbmc_stability_1.RData")
+save(hvg, kbet, lisi, nmi, ari, asw, file = paste0("cbmc_stability_",split_batch,".RData"))
 

@@ -2,7 +2,14 @@
 
 setwd("C:/Users/edbels/Documents/GitHub/mastat_thesis")
 
-load("cbmc_stability_1.RData")
+
+### choose option of split 
+# -> 1: equal split
+# -> 2: unequal split
+# -> 3: equal split, but with all "Naive CD4 T" in batch one
+split_batch <- 2
+
+load(paste0("cbmc_stability_",split_batch,".RData"))
 
 methods <- c("Merge","Seurat","Harmony","scTransform","scMerge")
 
